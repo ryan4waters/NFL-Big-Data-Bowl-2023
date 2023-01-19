@@ -1,98 +1,71 @@
-# NFL-Big-Data-Bowl-2023
+# STRAIN
 
-Linemen on Pass Plays
+*When American football meets materials science*
 
 ## Introduction
 
-An offense breaks the huddle on a critical third down. The defense comes out in a double-mugged pressure look with two off-ball linebackers aligned in the A-gaps. The offense changes the protections call based on the defensive alignment, trying to predict and account for potential pass rushers. Earlier in the game, when the defense showed this look, they rushed six defenders; the offense successfully countered with a full slide protection, putting the running back on the EDGE away from the slide. Recalling what worked earlier, the quarterback once again calls for the full slide protection as he anticipates a six-man pressure.
+What is considered a success for a pass-rusher on a pass play? The simplest answer to this question is a sack. In terms of tracking data, one can think of a sack as reducing the distance between the pass-rusher and quarterback to 0. More generally, a good starting point for a continuous measure of pass-rushing effectiveness should be based on the distance between the rusher and quarterback, with smaller distances indicating greater success. However, this naive approach has major drawbacks. Consider the case where a rusher is within two yards of the quarterback, but is then stopped and fails to get any closer for the rest of the play. This is not a successful rush because the pass-rusher is not continuing to reduce their distance to the quarterback. Thus, another approach for pass-rushing assessment is to measure the rate at which the rusher is getting to the quarterback. Yet, the rate by itself is also inadequate. If a defender is 50 yards away and moving towards the quarterback, their moving rate is essentially unimportant due to a significantly far distance.
 
-But this time, when the ball is snapped, both mugged linebackers drop into coverage - leaving five offensive linemen for three defensive linemen, with the EDGE in a favorable one-on-one matchup against the running back. The extra defenders in coverage delay the quarterback’s decision making, allowing the EDGE to beat the running back for a sack and forcing a punt.
+Therefore, in order to appropriately evaluate rusher performance, the distance from the quarterback and the rate at which this distance is being reduced must both be considered. We propose STRAIN, a new measure for pass-rusher effectiveness, which is computed as the ratio of the aforementioned moving rate and distance quantities. Our proposed metric has a nice interpretation and is inspired by the concept of "strain rate" in materials science.
 
-Our project attempts to predict a defender’s probability of being a pass rusher based on their pre-snap positioning and movements. Pass Rush Probability (xPassRush) and its derivatives can be useful tools for coaches and pro scouts to help identify and prepare for opposing defensive tendencies.
+## Strain rate in materials science
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/xPassRushHeat.png)
+In [materials science](https://en.wikipedia.org/wiki/Materials_science), [strain](https://en.wikipedia.org/wiki/Deformation_(physics)#Strain) is the deformation of a material from stress. The stretching of a rubber band is an example of strain: the longer the stretch, the larger the strain. Formally, let $L(t)$ be the distance between two points of interest at time t, and  be the initial distance between those two points. Then the strain at time $L_0$ is defined as $s(t)=\frac{L(t)-L_0}{L_0}$. Notice that this measure is unitless as a ratio of two quantities having the same dimension. Furthermore, the strain rate is the derivative of strain. That is,$s^{'}(t)=\frac{ds}{dt}=\frac{v(t)}{L_0}$, where $v(t)$ is the rate at which the two points of interest are moving away from/towards eachother. Whereas strain is unitless, the strain rate is measured in inverse of time,usually $seconds^{-1}$.
 
-The model correctly predicts a defender will pass rush 91% of the time while incorrectly predicting a coverage player will pass rush 6% of the time. The features in the model are the player’s distance from the line of scrimmage, horizontal distance from the ball, direction, and “crept distance”, i.e. the distance a defender walks up or “creeps” towards the line of scrimmage (where a positive distance means moving towards the LOS, and negative means moving away). Additionally, each player is assigned a “primary position” label, which is a grouping (EDGE, IDL, Off-Ball LB, Safety, CB) based on their most frequent alignments (as determined by PFF charting).
+## Application to pass-rushing in football
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/primary_pos_summary.png)
+Motivated by its scientific definition, we draw an analogy between strain and pass-rushing in football. **Just as strain rate is a measure of deformation in materials science, a pass-rusher's efforts involve the application of force/deformation against the offensive line, with the ultimate goal of breaking through the protection to reach the quarterback. The players can be viewed as "particles" in some material and the defensive "particles" are attempting to exert pressure on the pocket with the aim of compressing and collapsing this pocket around the quarterback.**
 
-## Using Pre-Snap Indicators to Identify a Pass Rusher
+In order to apply strain rate to measure NFL pass-rusher effectiveness, we make modifications to how this concept is traditionally defined.
 
-The following graphic of a 3rd & 7 play (Q4 - 8:17) from the Dolphins-Patriots Week 1 matchup shows how the model predicts key defenders’ probability of rushing the passer.
+Let $(x_{ijt},y_{ijt})$ location on the field of player $j=1,...,J$ at frame $t=1,...,T_i$ for play $i=1,..,n$; and $(x_{it}^{QB},y_{it}^{QB})$ be the $(x,y)$ location of the quarterback at frame $t$ during play $i$.
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/bdb%2022%20graphic.png)
+* The distance between player $j$ and the quarterback at frame $t$ during play $i$ is $f_{d_{ij}}(t)=\sqrt{(x_{ijt}-x_{it}^{QB})^2 + (y_{ijt}-y_{it}^{QB})^2}$.
+* The rate at which player $j$ is moving towards the quarterback at frame $t$ during play $i$ is $f_{d_{ij}}^{'}(t)=\frac{df_{d_{ij}}(t)}{dt}$.
+* The STRAIN for player $j$ at frame $t$ during play $i$ is
+$$STRAIN_{ij}(t)=\frac{-f_{d_{ij}}^{'}(t)}{f_{d_{ij}}(t)}$$
 
-Prior to the snap, we know it is extremely likely 0-technique Christian Barmore (#90) is going to pass rush given his pre-snap positioning. But just using the naked eye, there is more uncertainty for the offense regarding Kyle Van Noy (#53), Adrian Phillips (#21), and D’onta Hightower (#54) aligned at LOLB, LILB, and ROLB respectively.
+(Note that to distinguish our metric from strain and strain rate in materials science, we write it in capital letters (STRAIN) for the remainder of this report.)
 
-Despite both Van Noy and Hightower dropping into coverage, their perceived blitz threat combined with their wide alignments force the offensive tackles to kick slide hard off the ball to gain initial depth; once the tackles recognize that both drop into coverage, their focus shifts to Judon (#9) and Uche (#55).
+Recall that by its materials science property, strain is generally defined to increase as the distance between two points increases. In our football setting, the two points of interest are the pass-rusher and the quarterback, and we want our metric to increase as the distance between the pass-rusher and the quarterback decreases. Thus, the negative sign in the numerator of our formula accounts for this. Additionally, rather than keeping the initial distance ($L_0$ as previously denoted) between two points constant over time, we update theinitial position to be the player locations at the beginning of each frame. Thiseffectively gives us the STRAIN for each frame throughout a play.
 
-With the RT now forced to recover and try to block Judon after Van Noy dropped into coverage, Judon is able to more easily gain inside leverage as he penetrates the B-gap. This allows Phillips to loop around the RT after he manipulates the RG with his original inside rush path, leading to pressure which ultimately forces an errant intercepted pass.
+Since we only observe these functions discretely in increments of 10 frames/second, an estimate for our proposed metric STRAIN is
+$$\widehat{STRAIN_{ij}(t)} = \frac{-\frac{f_{d_{ij}}(t) - f_{d_{ij}}(t-1)}{0.1}}{f_{d_{ij}}(t)}$$
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/NEpressure.gif)
+Notice that this quantity increases in two ways: 1) the rate at which the rusher is moving towards the quarterback increases, and 2) the distance between the rusher and the quarterback gets smaller. Both of these are indications of pass-rusher effectiveness. Finally, our statistic STRAIN is measured in inverse seconds, similar to strain rate. (There is also an interesting interpretation of the reciprocal of our metric, namely, the amount of time required for the rusher to get to the quarterback at the current location and rate at any given time $t$.)
 
-What pre-snap indicators could have given the Dolphins more information to be better prepared for this pressure?
+## Analysis
 
-Despite Van Noy’s alignment near the LOS, the model only assigned a 7.2% pass rush probability to him based on other pre-snap indicators, such as the horizontal distance from the ball and the crept distance. On the opposite end, Hightower’s pass rush prediction was essentially a coin flip (53.6%), which can also be attributed to his horizontal distance to the ball as seen in the figure above.
+In the forthcoming analysis, we rely on the provided data of all passing plays from the first 8 weeks of the 2021 NFL season. We include only the frames between the ball snap and when a pass forward or QB sack is recorded for each play. We also remove all plays with multiple quarterbacks on the field, since we need a uniquely defined quarterback to calculate our measure. Using PFF scouting data, we only consider defenders with role "Pass rush" for evaluation.
 
-Phillips’s intentions were the most interesting of the defenders on the field to gauge. Despite being approximately 4 yards from the LOS his horizontal distance from the ball (1.8 yards) and crept distance (0.43 yards) showed he had a relatively high chance of rushing (71.6%).
+## Example play
 
-Crept Distance has more signal as a pre-snap indicator for the pass rush probability of Off-Ball LBs, Safeties, and CBs compared to EDGEs or IDLs, which is intuitive as they are further from the LOS.
+To illustrate STRAIN for pass-rusher evaluation, we use a play from the 2021 NFL regular season week 6 matchup between the Las Vegas Raiders and Denver Broncos, which ended with [Broncos QB Teddy Bridgewater getting sacked by Raiders DE Maxx Crosby](https://www.raiders.com/video/de-maxx-crosby-sacks-qb-teddy-bridgewater-for-a-loss-of-6-yards-nfl). The figure below consists of two elements: at top, the locations of every Las Vegas (black) and Denver (orange) player on the field during the play, with Maxx Crosby highlighted in blue; and at bottom, a line graph showing how Crosby's distance from the QB, velocity, and STRAIN change continuously throughout the play. Note that the point size for each Las Vegas defender corresponds to the estimated STRAIN in each frame as the play progresses.
 
-## Identifying The Most Unpredictable Schemes, Blitzers, & Bluffers: PROE & MSE
+For the first 2.5 seconds, Crosby is being covered by a Denver player and unable to get close to the quarterback, hence the corresponding STRAIN values are virtually zero. Suddenly, the STRAIN increases after Crosby is freed up and charges towards Bridgewater. At 4 seconds after the snap, Crosby's STRAIN is 2.30, which means at his current moving rate, it will take Crosby about 0.43 (1/2.30) seconds to make the distance between him and the quarterback 0 (i.e. essentially sack the quarterback). This is consistent with the final outcome of the play, as the sack takes place at the very last frame (4.4 seconds) where the estimated STRAIN for Crosby reaches its peak at 3.96.
 
-Coaches and pro scouts spend countless hours studying game tape to find tendencies. Pass Rush% Over Expectation (PROE; the difference in a player's actual pass rush and xPassRush) and Mean Squared Error (MSE) can show which players are deviating most from their expected role on a play.
+![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/STRAIN/figures/example_play.gif)
 
-The figure below shows the defenses with the most unpredictable pass rush schemes by MSE (mean squared error; measures how actual behavior deviates from model prediction, i.e. more unpredictable/versatile playcalling) and can aid an offensive coach in their preparation for teams with unpredictable pass rush schemes. Even prior to beginning their tape study, coaches can know that they’ll likely need to prepare to adjust their protections because of the irregularity of pressure.
+![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/STRAIN/figures/position_curves.png)
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/teamdefense.png)
+## Positional STRAIN curves
 
-It’s no surprise a Todd Bowles’s coached unit led the NFL in unpredictability (MSE). The Buccaneers’ high MSE can be attributed to occasionally dropping their interior defensive linemen into coverage. Below is an example of Vita Vea (#50) and Ndamukong Suh (#93) dropping into coverage while CBs Carlton Davis (#24) and Ross Cockrell (#43) rush the passer. This scheme resulted in the highest MSE for a defense on a single play in the eight week sample (0.365).
+The following plot displays the average STRAIN by position for the first 40 frames (4 seconds) after the snap. We observe a clear difference in STRAIN between edge rushers (OLB's and DE's) and interior linemen (DT's and NT's). Specifically, edge rushers have higher STRAIN than interior linemen on average, as they are more easily able to approach the quarterback on the edge of the pocket versus, for instance, a nose tackle attacking the line head on.
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/TBhighestmse.gif)
+On average, STRAIN appears to increase for the first 0.5 seconds of a play, followed by a decline in the next second. STRAIN then increases again until around 2.5-3 seconds after the snap before trending down towards the end of the play. In context, this reflects the actions that a pass-rusher initially moves towards the quarterback, but is then stopped by the offensive line while the quarterback drops back. When the quarterback stops dropping, the rusher closes the gap and increases STRAIN, before slowing down later on.
 
-MSE and PROE can also be used to analyze how defenses deploy specific position groups. The Dolphins’ Off-Ball LB unit, for example, had the highest MSE (0.15) among all defensive units in the sample, followed by the Patriots’ Off-Ball LBs (0.13) and Falcons’ EDGEs (0.13), meaning that these groups deviated the most from their expected behavior based on the model. The Dolphins’ Off-Ball LBs rushed the passer much more frequently than expected, with a PROE of +8.2%, while the Patriots LBs’ (PROE: Patriots: -0.1%) rush rate roughly matched up with their overall expectation. This high unpredictability in spite of a PROE near 0 likely means that the Patriots LBs often rushed the passer when expected not to and vice versa.
+## Ranking the best pass-rushers
 
-The figure below shows the players with the highest MSE among their respective primary position. In preparation for the 2021 Dolphins defense, an advance report could have noted that Andrew Van Ginkel (who primarily aligns as an EDGE defender) is likelier to drop into coverage than his pre-snap positioning indicates. Meanwhile his teammates, Off-Ball LB Sam Eguavoen and Safety Brandon Jones, have a tendency to blitz more often than expected.
+To determine the most effective pass-rushers, we compute $\overline{STRAIN}$, which represents the average STRAIN across all frames played for each player. Based on the clearly distinct patterns for different positions as previously observed, we evaluate interior pass-rushers (NT's and DT's) separately from edge rushers (OLB's and DE's). The following tables show the top performing pass-rushers (with at least 100 plays) rated by $\overline{STRAIN}$ for the first 8 weeks of the 2021 season.
 
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/mse_highs.png)
+Our results show many true positives with no surprises. Myles Garrett and TJ Watt are known as top-tier edge rushers, while Aaron Donald is undoubtedly the best interior defender in football. Rashan Gary, a young rusher with huge potential, ranks first among all pass-rushers according to our metric. Our leaderboards largely match the rankings of experts in the field (for instance, PFF's [edge](https://www.pff.com/news/nfl-2022-edge-rusher-rankings-tiers) and [interior](https://www.pff.com/news/nfl-interior-defensive-line-rankings-tiers-2022) rusher rankings after the 2021 season), lending credibility to our proposed metric as a measure of pass-rushing effectiveness.
 
-It’s important to note that tendency is relative to expectation. No one expects Vita Vea to drop into coverage routinely, as evidenced by his 96% actual pass rush percentage, but among IDL he is the most unpredictable and it’s something to consider when preparing for the Buccaneers.
+![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/STRAIN/figures/player_rankings.png)
 
-## Coaches Application - Sample Advance Reports
+## Discussion
 
-Below are two examples of advance reports using xPassRush, PROE, and MSE to find tendencies for a team and a specific player.
+We have proposed STRAIN, a simple and interpretable statistic for evaluating pass-rushers, with higher STRAIN corresponds to greater pass-rushing ability. Compared to existing metrics such as [ESPN's Pass Rusher Win Rate (PRWR)](https://www.espn.com/nfl/story/_/id/24892208), STRAIN measures pass-rush effectiveness for every play continuously over time, which is at a much more granular level than considering whether the play resulted in a sack or converting continuous data to a binary win/loss.
 
-In the team report, we analyze Dean Pees' Atlanta Falcons defense and his use of Simulated Pressures ([a pressure that brings a 2nd or 3rd level defender, a LB or DB, in exchange for dropping a 1st level defender on the DL](https://coachhoover.blogspot.com/2019/08/creepers-vs-simulated-pressures.html)). We focused on the Falcons because they had one of the higher MSE figures and as we explored deeper, their Sim Pressure usage (15.5%, 1st) stood out as to why they had such an unpredictable pass rush scheme. For the purpose of this analysis we included Creepers in our Simulated Pressure definition to increase the sample of plays.
+As for future directions, STRAIN could be utilized to collectively evaluate the performance of a pass-rushing unit by considering the total amount of STRAIN during a play, which could, in turn, be used to examine the effectiveness of different types of blitzes. Moreover, while we focused solely on pass-rushers, STRAIN can be easily extended to the assessment of pass-blockers as a unit by looking at quantities such as the total STRAIN or the maximum STRAIN per frame aggregated across the entire play. It is also possible to apply STRAIN to assess individual offensive pass-blockers, provided that a method of matching blockers to rushers was developed.
 
-## Dean Pees' & The Atlanta Falcons' Simulated Pressure Usage
-
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/ATL%20Sim%20Pressure%20Report.png)
-The report includes the Falcons' tendency by number of pass rushers, their Simulated Pressure usage by down and yards to go, the core second and third level defenders blitzing to replace the dropping first level players, a heat map displaying where pass rushers and coverage players align pre-snap on Sim Pressures compared to other pass rush schemes, and a tendency summary distilling the most important information in bullet points.
-
-In the player report, we analyze Packers’ Off-Ball LB De’Vondre Campbell in Mugged alignments (defined as aligning as an off-ball LB within 2 yards of the LOS). We found Campbell to be of interest as he had the most Mugged snaps (40) and one of the lowest PROE (-32%) when in this alignment.
-
-## De'Vondre Campbell's Tendencies in Mugged Alignment
-
-![image](https://github.com/ryan4waters/NFL-Big-Data-Bowl-2023/blob/xPassRush/BDB2023%20Viz/De'Vondre%20Campbell%20Mugged%20Alignment%20Report.png)
-
-The report (please zoom in for further examination) includes Campbell’s tendencies (both in aggregate and split by role and pre-snap gap alignment), a heat map displaying where Campbell aligns relative to the LOS with his xPassRush indicated by color, and a tendency summary with the most important information in bullet points.
-
-These reports are purely examples and the reports could be fully customized to what a coach deems most important moving forward. In addition to the report, we could send coaches a brief All-22 cutup featuring the situations analyzed to supplement the report.
-
-## In a Coach's Words - by Cody Alexander
-
-*Cody is a former Texas HS Football Coach & FBS Defensive GA.*
-
-The NFL game is a passing one, with a premium on protecting the quarterback. Therefore, the offensive staff must understand how a defense will attack their protection on any given week. Inversely, defenses attempt to apply pressure and manipulation through alignment and pre-snap presentation. As straightforward as that may seem, the defense's advantage is through pressure. Offenses dictate alignments by formation, but defenses can counter that through force or coercion. When offenses sit down to study a defense, using PROE, MSE, and xPassRush will give the staff a clear picture of what they see on film.
-
-One primary application for using these analytic points is to streamline the use of film to identify "tells" within a defense. For instance, using the Mugged Alignment chart will allow quarterbacks, the offensive line, and coaches to identify adequately when a defender is rushing and correlate that within film study and real-time during a game. These analytic points can also help coaches build better practice scenarios that simulate real-time game experiences.
-
-Defensively the principal use for these analytic points is within self-scouting. As shown through the MSE bar graph, a team can see how predictable their perceived presentations and play calls are. For example, Tampa Bay's staff does an excellent job of changing up looks weekly to create perceived chaos on game day. Unpredictability can create hesitation, and in the NFL, that spells disaster. Defensive staffs can use this information to develop weekly studies of their blitz designs. Predictability when on defense is not a trait most coaches want.
-
-Finally, using this data on game days can allow for real-time game adjustments, as both the offense and defense can track how their opponents react. For offenses, they can use the xPassRush to shift protections off any unique look presented that week. Defensively, coaches can identify what looks are creating or lacking in pressure and address playcalling accordingly.
-
-## Conclusion & Further Exploration
-
-We hope that xPassRush, MSE, and PROE can be valuable tools for coaches and pro scouts in their preparation for upcoming opponents and self-scouting.
-
-With further development xPassRush could even become a player development tool that helps QB and OL take mental reps to pickup on the subtle nuances and tells for certain defender alignments. An app "game" could be created where a player has to predict which defender is going to rush the passer using the pre-snap information from the All-22. The player would input his prediction by checking off the players he expects to rush and summarize in a notes section what offensive protection call would then take place to block that group of pass rushers. Once that information is submitted the app would provide feedback to the player on whether his prediction was correct or not.
+Our metric, however, is subject to several limitations. As currently devised, STRAIN cannot distinguish between a pass-rusher who has to face a single blocker versus a double team. This problem could be addressed, at least somewhat, by having a method of matching pass-rushers to blockers as previously mentioned. Additionally, there are a few situations such as quarterback out-of-pocket scrambling where STRAIN does not appear to be useful. If a pass-rusher is on the left side and the quarterback scrambles out to the left, the STRAIN for that pass-rusher can drop considerably as the distance between the quarterback and pass-rusher increases, which the defender should not necessarily be negatively affected by in a measure of pass-rushing effectiveness.
